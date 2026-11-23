@@ -11,7 +11,7 @@ Pwned Passwords range API.
 
 | Part | What it does |
 | --- | --- |
-| `frontend/` — React + TypeScript (Vite) | Hashing, prefix lookup, local suffix match, UI |
+| `frontend/` — React + TypeScript (Vite), [GSAP](https://github.com/greensock/GSAP), [Lenis](https://github.com/darkroomengineering/lenis), [React Bits](https://github.com/DavidHDev/react-bits) | Hashing, prefix lookup, local suffix match, animated UI (respects reduced-motion) |
 | `backend/` — Go (`net/http`, pgx) | `GET /api/range/{prefix}` proxy to HIBP with `Add-Padding`, Postgres cache (24h TTL, serves stale if HIBP is down), per-IP rate limit (in memory), `GET /api/stats`, `GET /healthz`, strict CSP, serves the built frontend |
 | Postgres | `range_cache(prefix, body, fetched_at)` and `check_stats(day, checks)` — no passwords, hashes, or IPs stored |
 
