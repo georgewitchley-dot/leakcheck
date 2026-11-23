@@ -3,6 +3,7 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { checkPassword } from "./pwned";
 import { prefersReducedMotion, useLenis } from "./useLenis";
+import { usePageLock } from "./usePageLock";
 import SplitText from "./components/reactbits/SplitText";
 import ShinyText from "./components/reactbits/ShinyText";
 import SpotlightCard from "./components/reactbits/SpotlightCard";
@@ -88,6 +89,7 @@ function ResultCard({ count, prefix }: { count: number; prefix: string }) {
 
 export default function App() {
   useLenis();
+  usePageLock();
   const [password, setPassword] = useState("");
   const [reveal, setReveal] = useState(false);
   const [state, setState] = useState<State>({ kind: "idle" });
@@ -105,6 +107,22 @@ export default function App() {
   useEffect(() => {
     loadStats();
   }, []);
+
+  // Don't leave a password sitting in the page: clear it when the tab is hidden
+  // and after two minutes without typing.
+  useEffect(() => {
+    const clear = () => {
+      setPassword("");
+      setReveal(false);
+    };
+    const onVis = () => document.visibilityState === "hidden" && clear();
+    document.addEventListener("visibilitychange", onVis);
+    const t = password ? window.setTimeout(clear, 120_000) : undefined;
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.clearTimeout(t);
+    };
+  }, [password]);
 
   // Hero entrance (headline is animated by SplitText).
   useGSAP(

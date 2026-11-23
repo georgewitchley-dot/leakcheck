@@ -139,9 +139,11 @@ func httpError(w http.ResponseWriter, code int, msg string) {
 }
 
 func clientIP(r *http.Request) string {
-	// Railway and most proxies put the real client first in X-Forwarded-For.
+	// The edge proxy appends the real client address as the last X-Forwarded-For
+	// entry; earlier entries can be forged by the client, so they are ignored.
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return strings.TrimSpace(strings.Split(xff, ",")[0])
+		parts := strings.Split(xff, ",")
+		return strings.TrimSpace(parts[len(parts)-1])
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -150,16 +152,36 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+const csp = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; " +
+	"connect-src 'self'; manifest-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; " +
+	"frame-ancestors 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests"
+
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+		h.Set("Content-Security-Policy", csp)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()")
-		h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), clipboard-read=(), clipboard-write=(), interest-cohort=()")
+		h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Cross-Origin-Resource-Policy", "same-origin")
+		h.Set("Cross-Origin-Embedder-Policy", "require-corp")
+		h.Set("X-Permitted-Cross-Domain-Policies", "none")
+		h.Set("X-DNS-Prefetch-Control", "off")
+
+		// Read-only site: only GET and HEAD are accepted anywhere.
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			h.Set("Allow", "GET, HEAD")
+			httpError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		// Other websites may not use the API from a visitor's browser.
+		if strings.HasPrefix(r.URL.Path, "/api/") && r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+			httpError(w, http.StatusForbidden, "cross-site requests are not allowed")
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -177,7 +199,7 @@ func spaHandler(dir string) http.Handler {
 			if clean != "/" {
 				r.URL.Path = "/"
 			}
-			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Cache-Control", "no-store")
 		} else if strings.HasPrefix(clean, "/assets/") {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}

@@ -102,3 +102,33 @@ func TestSecurityHeadersAndUnknownAPI(t *testing.T) {
 		t.Fatal("missing CSP")
 	}
 }
+
+func TestRejectsWritesAndCrossSite(t *testing.T) {
+	app, _ := newTestApp(&fakeUpstream{body: "x"})
+	h := app.Routes(t.TempDir())
+	for _, m := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, httptest.NewRequest(m, "/api/range/00000", nil))
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s: got %d want 405", m, rr.Code)
+		}
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/range/00000", nil)
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("cross-site: got %d want 403", rr.Code)
+	}
+	if rr.Header().Get("Cross-Origin-Resource-Policy") != "same-origin" {
+		t.Fatal("missing CORP")
+	}
+}
+
+func TestClientIPUsesLastForwardedEntry(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-For", "6.6.6.6, 203.0.113.9")
+	if got := clientIP(req); got != "203.0.113.9" {
+		t.Fatalf("got %s", got)
+	}
+}
