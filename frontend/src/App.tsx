@@ -289,13 +289,7 @@ export default function App() {
               <strong>{fmt.format(total)}</strong> passwords checked privately
             </p>
           )}
-          <p>
-            Breach data from{" "}
-            <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noreferrer">
-              Have I Been Pwned
-            </a>{" "}
-            · Free forever
-          </p>
+          <p>Free forever · No accounts · No tracking</p>
         </footer>
       </div>
     </>
